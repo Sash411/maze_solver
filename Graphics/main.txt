@@ -1,0 +1,179 @@
+#include <GL/glut.h>
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <cstdlib>
+#include <ctime>
+#include <climits>
+
+using namespace std;
+
+const int SIZE = 20; // Size of the maze
+const int WALL = 0;
+const int PATH = 1;
+const int VISITED = 2;
+const int SHORTEST_PATH = 3;
+
+int maze[SIZE][SIZE];
+int distances[SIZE][SIZE];
+pair<int, int> previous[SIZE][SIZE];
+int start_x, start_y, end_x, end_y;
+
+struct Node {
+    int x, y;
+    int distance;
+
+    Node(int _x, int _y, int _distance) : x(_x), y(_y), distance(_distance) {}
+
+    bool operator<(const Node& other) const {
+        return distance > other.distance;
+    }
+};
+
+void generateMaze() {
+    srand(time(0));
+
+    for (int i = 0; i < SIZE; ++i) {
+        for (int j = 0; j < SIZE; ++j) {
+            if (i == 0 || i == SIZE - 1 || j == 0 || j == SIZE - 1) {
+                maze[i][j] = WALL;
+            } else {
+                maze[i][j] = PATH;
+            }
+        }
+    }
+
+    // Generate walls
+    for (int i = 2; i < SIZE - 2; i += 2) {
+        for (int j = 2; j < SIZE - 2; j += 2) {
+            maze[i][j] = WALL;
+        }
+    }
+}
+
+void solveMaze() {
+    priority_queue<Node> pq;
+    pq.push(Node(start_x, start_y, 0));
+
+    for (int i = 0; i < SIZE; ++i) {
+        for (int j = 0; j < SIZE; ++j) {
+            distances[i][j] = INT_MAX;
+        }
+    }
+
+    distances[start_x][start_y] = 0;
+
+    while (!pq.empty()) {
+        Node current = pq.top();
+        pq.pop();
+
+        if (current.x == end_x && current.y == end_y) {
+            break;
+        }
+
+        if (distances[current.x][current.y] < current.distance) {
+            continue;
+        }
+
+        int dx[] = {1, 0, -1, 0};
+        int dy[] = {0, 1, 0, -1};
+
+        for (int i = 0; i < 4; ++i) {
+            int newX = current.x + dx[i];
+            int newY = current.y + dy[i];
+
+            if (newX >= 0 && newX < SIZE && newY >= 0 && newY < SIZE && maze[newX][newY] != WALL) {
+                int newDistance = current.distance + 1;
+
+                if (newDistance < distances[newX][newY]) {
+                    distances[newX][newY] = newDistance;
+                    previous[newX][newY] = make_pair(current.x, current.y);
+                    pq.push(Node(newX, newY, newDistance));
+                }
+            }
+        }
+    }
+
+    int x = end_x;
+    int y = end_y;
+
+    while (x != start_x || y != start_y) {
+        maze[x][y] = SHORTEST_PATH;
+        pair<int, int> prev = previous[x][y];
+        x = prev.first;
+        y = prev.second;
+    }
+}
+
+void display() {
+    glClear(GL_COLOR_BUFFER_BIT);
+    glLoadIdentity();
+    glTranslatef(-1.0f, -1.0f, 0.0f);
+    glScalef(2.0f / SIZE, 2.0f / SIZE, 1.0f);
+
+    for (int i = 0; i < SIZE; ++i) {
+        for (int j = 0; j < SIZE; ++j) {
+            if (maze[i][j] == WALL) {
+                glColor3f(0.0f, 0.0f, 0.0f); // Black color for walls
+            } else if (maze[i][j] == PATH) {
+                glColor3f(1.0f, 1.0f, 1.0f); // White color for paths
+            } else if (maze[i][j] == VISITED) {
+                glColor3f(0.0f, 1.0f, 0.0f); // Green color for visited cells
+            } else if (maze[i][j] == SHORTEST_PATH) {
+                glColor3f(1.0f, 0.0f, 0.0f); // Red color for the shortest path
+            }
+
+            glBegin(GL_QUADS);
+            glVertex2f(j, i);
+            glVertex2f(j + 1, i);
+            glVertex2f(j + 1, i + 1);
+            glVertex2f(j, i + 1);
+            glEnd();
+        }
+    }
+
+    glutSwapBuffers();
+}
+
+void mouseClick(int button, int state, int x, int y) {
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+        // Convert mouse coordinates to maze cell coordinates
+        int cellX = x * SIZE / glutGet(GLUT_WINDOW_WIDTH);
+        int cellY = (glutGet(GLUT_WINDOW_HEIGHT) - y) * SIZE / glutGet(GLUT_WINDOW_HEIGHT);
+
+        if (cellX >= 0 && cellX < SIZE && cellY >= 0 && cellY < SIZE) {
+            if (maze[cellY][cellX] == PATH) {
+                if (start_x == -1 && start_y == -1) {
+                    start_x = cellY;
+                    start_y = cellX;
+                    cout << "Start point set: (" << start_x << ", " << start_y << ")" << endl;
+                } else if (end_x == -1 && end_y == -1) {
+                    end_x = cellY;
+                    end_y = cellX;
+                    cout << "End point set: (" << end_x << ", " << end_y << ")" << endl;
+                    solveMaze();
+                }
+            }
+        }
+    }
+}
+
+int main(int argc, char** argv) {
+    generateMaze();
+
+    start_x = -1;
+    start_y = -1;
+    end_x = -1;
+    end_y = -1;
+
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitWindowSize(600, 600);
+    glutCreateWindow("OpenGL Maze Solver");
+    glutDisplayFunc(display);
+    glutMouseFunc(mouseClick);
+    glutMainLoop();
+
+    return 0;
+}
+
